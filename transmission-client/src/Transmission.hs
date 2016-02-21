@@ -35,7 +35,7 @@ initSession cfg = liftIO $ do
         HTTP.path = path cfg,
         HTTP.checkStatus = \_ _ _ -> Nothing
     }
-    mgr <- HTTP.newManager HTTP.tlsManagerSettings
+    mgr <- HTTP.newManager $ if secure cfg then HTTP.tlsManagerSettings else HTTP.defaultManagerSettings
     resp <- HTTP.httpLbs req mgr
     let tokname = "X-Transmission-Session-Id"
     case lookup tokname (HTTP.responseHeaders resp) of
