@@ -11,6 +11,7 @@ type Response = HTTP.Response LByteString
 
 data TransmissionException
     = TransmissionNoToken !Response
+    | TransmissionOtherException !Response
     deriving (Show, Typeable)
 
 instance Exception TransmissionException
@@ -24,8 +25,18 @@ data Config = Config {
     host :: !ByteString,
     secure :: !Bool,
     port :: !Int,
-    path :: !ByteString
+    path :: !ByteString,
+    timeout :: !Int
 }
+
+instance Default Config where
+    def = Config {
+        host = "127.0.0.1",
+        secure = False,
+        port = 9091,
+        path = "/transmission/rpc",
+        timeout = 10
+    }
 
 refreshToken :: MonadThrow m => Response -> HTTP.Request -> m HTTP.Request
 refreshToken resp req =
@@ -42,7 +53,10 @@ initSession Config {..} = liftIO $ do
         HTTP.secure = secure,
         HTTP.port = port,
         HTTP.path = path,
-        HTTP.checkStatus = \_ _ _ -> Nothing
+        HTTP.checkStatus = \_ _ _ -> Nothing,
+        HTTP.cookieJar = Nothing,
+        HTTP.redirectCount = 0,
+        HTTP.responseTimeout = Just timeout
     }
     mgr <- HTTP.newManager $ if secure then HTTP.tlsManagerSettings else HTTP.defaultManagerSettings
     resp <- HTTP.httpLbs req mgr
