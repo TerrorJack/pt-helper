@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
 module Transmission where
 
@@ -35,16 +35,16 @@ refreshToken resp req =
     where tokname = "X-Transmission-Session-Id"
 
 initSession :: MonadIO m => Config -> m Session
-initSession cfg = liftIO $ do
+initSession Config {..} = liftIO $ do
     let req = def {
         HTTP.method = "POST",
-        HTTP.host = host cfg,
-        HTTP.secure = secure cfg,
-        HTTP.port = port cfg,
-        HTTP.path = path cfg,
+        HTTP.host = host,
+        HTTP.secure = secure,
+        HTTP.port = port,
+        HTTP.path = path,
         HTTP.checkStatus = \_ _ _ -> Nothing
     }
-    mgr <- HTTP.newManager $ if secure cfg then HTTP.tlsManagerSettings else HTTP.defaultManagerSettings
+    mgr <- HTTP.newManager $ if secure then HTTP.tlsManagerSettings else HTTP.defaultManagerSettings
     resp <- HTTP.httpLbs req mgr
     req' <- refreshToken resp req
     pure Session {
