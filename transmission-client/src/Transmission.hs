@@ -1,6 +1,12 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
-module Transmission where
+module Transmission (
+    Response,
+    TransmissionException(..),
+    Session,
+    Config(..),
+    initSession
+) where
 
 import ClassyPrelude
 import Data.Default.Class
