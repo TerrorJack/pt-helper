@@ -1,5 +1,5 @@
 name:                transmission-client
-version:             0.0.1
+version:             2.80.0
 synopsis:            A Haskell wrapper for Transmission RPC protocol.
 description:         See README.md for details.
 homepage:            https://github.com/TerrorJack/pt-helper
