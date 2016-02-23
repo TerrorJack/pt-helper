@@ -35,7 +35,7 @@ data TransmissionException
 
 instance Exception TransmissionException
 
--- | Use 'def' of the 'Default' class to get a default 'Config'.
+-- | Use the 'Default' class to get a default 'Config'.
 data Config = Config {
     host :: !ByteString, -- ^ Host of RPC server. Defaults to @\"127.0.0.1\"@
     secure :: !Bool, -- ^ Whether or not to use HTTPS. Defaults to 'False'
