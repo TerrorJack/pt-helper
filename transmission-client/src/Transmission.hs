@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables #-}
 
 module Transmission (
     Response,
@@ -9,6 +9,7 @@ module Transmission (
 ) where
 
 import ClassyPrelude
+import qualified Data.Aeson as JSON
 import Data.Default.Class
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
@@ -46,27 +47,25 @@ instance Default Config where
         timeout = 10000
     }
 
-refreshToken :: MonadThrow m => Response -> HTTP.Request -> m HTTP.Request
-refreshToken resp req =
-    case lookup tokname (HTTP.responseHeaders resp) of
-        Just tok -> pure req { HTTP.requestHeaders = [(tokname, tok)] }
-        Nothing -> throwM $ TransmissionParseError resp
-    where tokname = "X-Transmission-Session-Id"
-
-sendRequest :: MonadIO m => Session -> LByteString -> m LByteString
-sendRequest s@Session {..} lbs = liftIO $ catch sendreq handler where
+sendRequest :: (MonadIO m, JSON.ToJSON req, JSON.FromJSON resp) => Session -> req -> m resp
+sendRequest s@Session {..} reqjson = liftIO $ catch sendreq handler where
     sendreq = do
         defreq <- readIORef sessionDefaultRequest
-        let req = defreq { HTTP.requestBody = HTTP.RequestBodyLBS lbs }
+        let req = defreq { HTTP.requestBody = HTTP.RequestBodyLBS $ JSON.encode reqjson }
         resp <- HTTP.httpLbs req sessionManager
         case HTTP.statusCode $ HTTP.responseStatus resp of
-            200 -> pure $ HTTP.responseBody resp
-            409 -> do
-                defreq' <- refreshToken resp defreq
-                writeIORef sessionDefaultRequest defreq'
-                sendRequest s lbs
+            200 -> case JSON.decode $ HTTP.responseBody resp of
+                Just result -> pure result
+                Nothing -> throwM $ TransmissionParseError resp
+            409 -> case lookup tokname (HTTP.responseHeaders resp) of
+                Just tok -> do
+                    let defreq' = defreq { HTTP.requestHeaders = [(tokname, tok)] }
+                    writeIORef sessionDefaultRequest defreq'
+                    sendRequest s reqjson
+                Nothing -> throwM $ TransmissionParseError resp
             _ -> throwM $ TransmissionOtherError resp
     handler e = throwM $ TransmissionHTTPException e
+    tokname = "X-Transmission-Session-Id"
 
 initSession :: MonadIO m => Config -> m Session
 initSession Config {..} = liftIO $ do
@@ -87,5 +86,5 @@ initSession Config {..} = liftIO $ do
         sessionManager = mgr,
         sessionDefaultRequest = reqref
     }
-    _ <- sendRequest s ""
+    (_ :: JSON.Value) <- sendRequest s ()
     pure s
