@@ -16,6 +16,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Transmission
   build-depends:       aeson,
+                       base64-bytestring,
                        classy-prelude,
                        data-default-class,
                        http-client,

@@ -2,7 +2,7 @@
     This module implements a wrapper for Transmission RPC protocol, as specified in <https://trac.transmissionbt.com/browser/trunk/extras/rpc-spec.txt>.
 -}
 
-{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedLists, OverloadedStrings, RecordWildCards, ScopedTypeVariables #-}
 
 module Transmission (
     -- * Session
@@ -18,6 +18,7 @@ module Transmission (
 
 import ClassyPrelude
 import qualified Data.Aeson as JSON
+import qualified Data.ByteString.Base64 as Base64
 import Data.Default.Class
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
@@ -102,3 +103,17 @@ initSession Config {..} = liftIO $ do
     }
     (_ :: JSON.Value) <- sendRequest s ()
     pure s
+
+-- | Represents a @.torrent@ file to be added.
+data Torrent
+    = TorrentURL !Text -- ^ Can be filename/URL/magnet link
+    | TorrentFile !ByteString -- ^ Raw content of the @.torrent@ file
+
+-- | Request for @torrent-add@ method.
+data TorrentAddRequest = TorrentAddRequest {
+    torrent :: !Torrent
+}
+
+instance JSON.ToJSON TorrentAddRequest where
+    toJSON (TorrentAddRequest (TorrentURL url)) = JSON.Object [("method",JSON.String "torrent-add"),("arguments",JSON.Object [("filename",JSON.String url)])]
+    toJSON (TorrentAddRequest (TorrentFile file)) = JSON.Object [("method",JSON.String "torrent-add"),("arguments",JSON.Object [("metainfo",JSON.String $ decodeUtf8 $ Base64.encode file)])]
