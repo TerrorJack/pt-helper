@@ -2,8 +2,6 @@
     This module implements a wrapper for Transmission RPC protocol, as specified in <https://trac.transmissionbt.com/browser/trunk/extras/rpc-spec.txt>.
 -}
 
-{-# LANGUAGE OverloadedLists, OverloadedStrings, RecordWildCards, ScopedTypeVariables #-}
-
 module Transmission (
     -- * Session
     Config(..),
@@ -17,6 +15,8 @@ module Transmission (
 ) where
 
 import ClassyPrelude
+import Control.Monad.Base
+import Control.Monad.Trans.Control
 import qualified Data.Aeson as JSON
 import qualified Data.ByteString.Base64 as Base64
 import Data.Default.Class
@@ -61,12 +61,13 @@ data Session = Session {
 }
 
 -- | The internal action for performing requests. Transparently handles acquiring/refreshing CSRF tokens.
-sendRequest :: (MonadIO m, JSON.ToJSON req, JSON.FromJSON resp) => Session -> req -> m resp
-sendRequest s@Session {..} reqjson = liftIO $ catch sendreq handler where
+sendRequest :: (MonadReader Session m, MonadBaseControl IO m, MonadThrow m, JSON.ToJSON req, JSON.FromJSON resp) => req -> m resp
+sendRequest reqjson = catch sendreq handler where
     sendreq = do
+        Session {..} <- ask
         defreq <- readIORef sessionDefaultRequest
         let req = defreq { HTTP.requestBody = HTTP.RequestBodyLBS $ JSON.encode reqjson }
-        resp <- HTTP.httpLbs req sessionManager
+        resp <- liftBase $ HTTP.httpLbs req sessionManager
         case HTTP.statusCode $ HTTP.responseStatus resp of
             200 -> case JSON.decode $ HTTP.responseBody resp of
                 Just result -> pure result
@@ -75,15 +76,15 @@ sendRequest s@Session {..} reqjson = liftIO $ catch sendreq handler where
                 Just tok -> do
                     let defreq' = defreq { HTTP.requestHeaders = [(tokname, tok)] }
                     writeIORef sessionDefaultRequest defreq'
-                    sendRequest s reqjson
+                    sendRequest reqjson
                 Nothing -> throwM $ TransmissionParseError resp
             _ -> throwM $ TransmissionOtherError resp
     handler e = throwM $ TransmissionHTTPException e
     tokname = "X-Transmission-Session-Id"
 
 -- | Initiate a 'Session'.
-initSession :: MonadIO m => Config -> m Session
-initSession Config {..} = liftIO $ do
+initSession :: MonadBase IO m => Config -> m Session
+initSession Config {..} = liftBase $ do
     mgr <- HTTP.newManager $ if secure then HTTP.tlsManagerSettings else HTTP.defaultManagerSettings
     let req = def {
         HTTP.method = "POST",
@@ -101,7 +102,7 @@ initSession Config {..} = liftIO $ do
         sessionManager = mgr,
         sessionDefaultRequest = reqref
     }
-    (_ :: JSON.Value) <- sendRequest s ()
+    (_ :: JSON.Value) <- runReaderT (sendRequest ()) s
     pure s
 
 -- | Represents a @.torrent@ file to be added.

@@ -21,10 +21,17 @@ library
                        data-default-class,
                        http-client,
                        http-client-tls,
-                       http-types
+                       http-types,
+                       monad-control,
+                       transformers-base
   default-language:    Haskell2010
   ghc-options:         -Wall
-  default-extensions:  NoImplicitPrelude
+  default-extensions:  FlexibleContexts,
+                       NoImplicitPrelude,
+                       OverloadedLists,
+                       OverloadedStrings,
+                       RecordWildCards,
+                       ScopedTypeVariables
 
 source-repository head
   type:     git
